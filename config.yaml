@@ -1,0 +1,22 @@
+clusters:
+- name: prod-us-west-1
+  kubeconfig_path: ~/.kube/config
+  context: prod-us-west-1
+  environment: prod
+  region: us-west-1
+  enabled: true
+- name: staging-us-west-1
+  kubeconfig_path: ~/.kube/config
+  context: staging-us-west-1
+  environment: staging
+  region: us-west-1
+  enabled: true
+scan_interval: 300
+domain_filter: .*\.tatari\.dev$
+include_namespaces: []
+exclude_namespaces:
+- kube-system
+- kube-public
+- istio-system
+enable_istio: true
+enable_ingress: true

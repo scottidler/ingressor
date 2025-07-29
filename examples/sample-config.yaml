@@ -1,0 +1,43 @@
+clusters:
+  - name: prod-us-west-1
+    kubeconfig_path: ~/.kube/config
+    context: prod-us-west-1
+    environment: prod
+    region: us-west-1
+    enabled: true
+  - name: staging-us-west-1
+    kubeconfig_path: ~/.kube/config
+    context: staging-us-west-1
+    environment: staging
+    region: us-west-1
+    enabled: true
+  - name: test-us-west-1
+    kubeconfig_path: ~/.kube/config
+    context: test-us-west-1
+    environment: test
+    region: us-west-1
+    enabled: true
+
+# Scan interval in seconds (default: 300 = 5 minutes)
+scan_interval: 300
+
+# Domain filter regex - only domains matching this pattern will be included
+# Example: only include *.tatari.dev domains
+domain_filter: .*\.tatari\.dev$
+
+# Namespaces to include (empty list means all namespaces)
+include_namespaces: []
+
+# Namespaces to exclude from scanning
+exclude_namespaces:
+  - kube-system
+  - kube-public
+  - istio-system
+  - cert-manager
+  - monitoring
+
+# Enable Istio VirtualService discovery
+enable_istio: true
+
+# Enable Kubernetes Ingress discovery
+enable_ingress: true 
