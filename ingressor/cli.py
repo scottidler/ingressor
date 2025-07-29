@@ -184,6 +184,7 @@ def init_config_command(args: argparse.Namespace) -> None:
 def validate_config_command(args: argparse.Namespace) -> None:
     """Validate a configuration file."""
     # Import only when needed
+    import yaml
     from .models import DiscoveryConfig
 
     config_path = Path(args.config)

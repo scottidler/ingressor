@@ -232,4 +232,4 @@ class IngressorClient:
     async def disconnect(self) -> None:
         """Clean up the connection."""
         if self._k8s_client:
-            await self._k8s_client.close()
+            self._k8s_client.close()

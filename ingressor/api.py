@@ -203,18 +203,15 @@ async def periodic_scan():
 
     while True:
         try:
-            if discovery:
-                logger.debug("Starting periodic cluster scan")
-                domains = await discovery.scan_all_clusters()
-                logger.info("Periodic scan completed successfully",
-                           domains_count=len(domains))
+            discovery = await get_discovery()
+            logger.debug("Starting periodic cluster scan")
+            domains = await discovery.scan_all_clusters()
+            logger.info("Periodic scan completed successfully",
+                       domains_count=len(domains))
 
-                scan_interval = discovery.config.scan_interval
-                logger.debug("Sleeping until next scan", interval_seconds=scan_interval)
-                await asyncio.sleep(scan_interval)
-            else:
-                logger.warning("Discovery not initialized, sleeping for default interval")
-                await asyncio.sleep(300)
+            scan_interval = discovery.config.scan_interval
+            logger.debug("Sleeping until next scan", interval_seconds=scan_interval)
+            await asyncio.sleep(scan_interval)
 
         except Exception as e:
             logger.error("Periodic scan failed", error=str(e))
@@ -225,7 +222,8 @@ async def periodic_scan():
 @app.on_event("startup")
 async def startup_event():
     """Start background tasks on application startup."""
-    if discovery:
+    try:
+        discovery = await get_discovery()
         # Perform initial scan
         try:
             await discovery.scan_all_clusters()
@@ -235,6 +233,8 @@ async def startup_event():
 
         # Start periodic scanning in background
         asyncio.create_task(periodic_scan())
+    except Exception as e:
+        logger.warning(f"Discovery not initialized yet: {e}")
 
 
 @app.on_event("shutdown")

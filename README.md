@@ -55,7 +55,7 @@ uv pip install -e .
        context: staging-us-west-1
        environment: staging
        enabled: true
-   
+
    domain_filter: .*\.tatari\.dev$  # Only scan *.tatari.dev domains
    scan_interval: 300  # Scan every 5 minutes
    ```
@@ -159,6 +159,20 @@ docker-compose up -d
 docker build -t ingressor .
 docker run -p 8000:8000 -v ~/.kube:/root/.kube:ro ingressor
 ```
+
+## 📚 Comprehensive Documentation
+
+For detailed deployment options, including in-cluster deployment, RBAC configuration, and production best practices, see the **[📖 Documentation](docs/)**:
+
+- **[🚀 Deployment Guide](docs/deployment.md)** - Complete guide covering external, in-cluster, and hybrid deployment options
+- **[📚 Documentation Index](docs/README.md)** - Full documentation overview and navigation
+
+The deployment guide covers:
+- **External/Centralized deployment** (laptop, CI/CD, management server)
+- **In-Cluster deployment** with Kubernetes manifests and RBAC
+- **Authentication mechanisms** (kubeconfig vs ServiceAccount)
+- **Production best practices** and troubleshooting
+- **CI/CD integration** examples
 
 ## 🛠️ Development
 
