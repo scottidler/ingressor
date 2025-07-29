@@ -5,12 +5,10 @@ from typing import List, Optional
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
 
 from .core import ServiceDiscovery
 from .logging_config import get_logger, log_api_request, log_api_response, log_function_entry, log_function_exit
 from .models import DomainInfo, DiscoveryConfig, ServiceSummary
-from .web import generate_dashboard_html
 
 logger = get_logger(__name__)
 
@@ -36,23 +34,23 @@ app.add_middleware(
 async def log_requests(request: Request, call_next):
     """Log all HTTP requests and responses."""
     start_time = asyncio.get_event_loop().time()
-    
+
     # Log request
     log_api_request(logger, request.method, str(request.url.path),
                    client_ip=request.client.host if request.client else "unknown",
                    user_agent=request.headers.get("user-agent", "unknown"))
-    
+
     # Process request
     response = await call_next(request)
-    
+
     # Calculate duration
     duration = asyncio.get_event_loop().time() - start_time
-    
+
     # Log response
-    log_api_response(logger, request.method, str(request.url.path), 
+    log_api_response(logger, request.method, str(request.url.path),
                     response.status_code,
                     duration_ms=round(duration * 1000, 2))
-    
+
     return response
 
 # Global service discovery instance
@@ -69,12 +67,12 @@ async def get_discovery() -> ServiceDiscovery:
 
 def initialize_discovery(config: DiscoveryConfig) -> None:
     """Initialize the global ServiceDiscovery instance."""
-    log_function_entry(logger, "initialize_discovery", 
+    log_function_entry(logger, "initialize_discovery",
                       clusters_count=len(config.clusters),
                       scan_interval=config.scan_interval)
     global discovery
     discovery = ServiceDiscovery(config)
-    logger.info("Service discovery initialized", 
+    logger.info("Service discovery initialized",
                clusters_count=len(config.clusters),
                scan_interval=config.scan_interval,
                domain_filter=config.domain_filter,
@@ -82,16 +80,6 @@ def initialize_discovery(config: DiscoveryConfig) -> None:
                enable_ingress=config.enable_ingress)
     log_function_exit(logger, "initialize_discovery", status="success")
 
-
-@app.get("/", response_class=HTMLResponse)
-async def dashboard():
-    """Serve the main dashboard page."""
-    disc = await get_discovery()
-    domains = disc.get_domains()
-    summary = disc.get_summary()
-    
-    html_content = generate_dashboard_html(domains, summary)
-    return HTMLResponse(content=html_content)
 
 
 @app.get("/health")
@@ -107,19 +95,19 @@ async def get_domains(
     namespace: Optional[str] = Query(None, description="Filter by namespace"),
 ):
     """Get all discovered domains with optional filtering."""
-    logger.debug("Getting domains", 
-                environment=environment, 
-                cluster=cluster, 
+    logger.debug("Getting domains",
+                environment=environment,
+                cluster=cluster,
                 namespace=namespace)
-    
+
     disc = await get_discovery()
     domains = disc.get_domains(
         environment=environment,
         cluster=cluster,
         namespace=namespace
     )
-    
-    logger.debug("Returning filtered domains", 
+
+    logger.debug("Returning filtered domains",
                 count=len(domains),
                 environment=environment,
                 cluster=cluster,
@@ -131,10 +119,10 @@ async def get_domains(
 async def get_domain(domain_name: str):
     """Get information about a specific domain."""
     disc = await get_discovery()
-    
+
     if domain_name not in disc.domains:
         raise HTTPException(status_code=404, detail=f"Domain {domain_name} not found")
-    
+
     return disc.domains[domain_name]
 
 
@@ -174,21 +162,21 @@ async def trigger_scan():
     """Manually trigger a scan of all clusters."""
     logger.info("Manual scan triggered")
     disc = await get_discovery()
-    
+
     try:
         logger.debug("Starting manual cluster scan")
         domains = await disc.scan_all_clusters()
-        
+
         result = {
             "status": "success",
             "message": f"Scan completed. Discovered {len(domains)} domains.",
             "domains_count": len(domains)
         }
-        
-        logger.info("Manual scan completed successfully", 
+
+        logger.info("Manual scan completed successfully",
                    domains_count=len(domains))
         return result
-        
+
     except Exception as e:
         logger.error("Manual scan failed", error=str(e))
         raise HTTPException(status_code=500, detail=f"Scan failed: {str(e)}")
@@ -198,15 +186,15 @@ async def trigger_scan():
 async def get_config():
     """Get current discovery configuration (sanitized)."""
     disc = await get_discovery()
-    
+
     # Return sanitized config (without sensitive data)
     config_dict = disc.config.model_dump()
-    
+
     # Remove sensitive kubeconfig paths
     for cluster in config_dict.get("clusters", []):
         if "kubeconfig_path" in cluster:
             cluster["kubeconfig_path"] = "***" if cluster["kubeconfig_path"] else None
-    
+
     return config_dict
 
 
@@ -214,22 +202,22 @@ async def get_config():
 async def periodic_scan():
     """Background task to periodically scan clusters."""
     logger.info("Starting periodic scan background task")
-    
+
     while True:
         try:
             if discovery:
                 logger.debug("Starting periodic cluster scan")
                 domains = await discovery.scan_all_clusters()
-                logger.info("Periodic scan completed successfully", 
+                logger.info("Periodic scan completed successfully",
                            domains_count=len(domains))
-                
+
                 scan_interval = discovery.config.scan_interval
                 logger.debug("Sleeping until next scan", interval_seconds=scan_interval)
                 await asyncio.sleep(scan_interval)
             else:
                 logger.warning("Discovery not initialized, sleeping for default interval")
                 await asyncio.sleep(300)
-                
+
         except Exception as e:
             logger.error("Periodic scan failed", error=str(e))
             logger.info("Retrying periodic scan in 60 seconds")
@@ -246,7 +234,7 @@ async def startup_event():
             logger.info("Initial scan completed")
         except Exception as e:
             logger.error(f"Initial scan failed: {e}")
-        
+
         # Start periodic scanning in background
         asyncio.create_task(periodic_scan())
 
@@ -254,4 +242,4 @@ async def startup_event():
 @app.on_event("shutdown")
 async def shutdown_event():
     """Clean up on application shutdown."""
-    logger.info("Shutting down ingressor API") 
+    logger.info("Shutting down ingressor API")
