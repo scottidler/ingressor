@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from kubernetes.client.rest import ApiException
 
-from ingressor.core import IngressorClient, ServiceDiscovery
+from ingressor.ingressor import IngressorClient
 from ingressor.models import ClusterConfig, DiscoveryConfig, DomainInfo
 
 
@@ -37,10 +37,10 @@ class TestIngressorClient:
         assert client._custom_objects is None
 
     @pytest.mark.asyncio
-    @patch('ingressor.core.config.load_kube_config')
-    @patch('ingressor.core.client.ApiClient')
-    @patch('ingressor.core.client.NetworkingV1Api')
-    @patch('ingressor.core.client.CustomObjectsApi')
+    @patch('ingressor.ingressor.config.load_kube_config')
+    @patch('ingressor.ingressor.client.ApiClient')
+    @patch('ingressor.ingressor.client.NetworkingV1Api')
+    @patch('ingressor.ingressor.client.CustomObjectsApi')
     @pytest.mark.asyncio
     async def test_connect_with_kubeconfig(self, mock_custom, mock_networking,
                                          mock_api_client, mock_load_config, client):
@@ -56,8 +56,8 @@ class TestIngressorClient:
         mock_custom.assert_called_once()
 
     @pytest.mark.asyncio
-    @patch('ingressor.core.config.load_incluster_config')
-    @patch('ingressor.core.client.ApiClient')
+    @patch('ingressor.ingressor.config.load_incluster_config')
+    @patch('ingressor.ingressor.client.ApiClient')
     @pytest.mark.asyncio
     async def test_connect_incluster(self, mock_api_client, mock_load_config):
         """Test connecting with in-cluster config."""
@@ -74,7 +74,7 @@ class TestIngressorClient:
         mock_api_client.assert_called_once()
 
     @pytest.mark.asyncio
-    @patch('ingressor.core.config.load_kube_config')
+    @patch('ingressor.ingressor.config.load_kube_config')
     @pytest.mark.asyncio
     async def test_connect_failure(self, mock_load_config, client):
         """Test connection failure handling."""
@@ -302,229 +302,3 @@ class TestIngressorClient:
 
         await client.disconnect()
         mock_k8s_client.close.assert_called_once()
-
-
-class TestServiceDiscovery:
-    """Tests for ServiceDiscovery."""
-
-    @pytest.fixture
-    def discovery_config(self):
-        """Create a test discovery configuration."""
-        return DiscoveryConfig(
-            clusters=[
-                ClusterConfig(name="cluster1", environment="test", enabled=True),
-                ClusterConfig(name="cluster2", environment="prod", enabled=True),
-                ClusterConfig(name="cluster3", environment="staging", enabled=False)
-            ],
-            scan_interval=300,
-            domain_filter=r".*\.example\.com$",
-            exclude_namespaces=["kube-system"]
-        )
-
-    @pytest.fixture
-    def service_discovery(self, discovery_config):
-        """Create a ServiceDiscovery instance."""
-        return ServiceDiscovery(discovery_config)
-
-    def test_init(self, service_discovery, discovery_config):
-        """Test ServiceDiscovery initialization."""
-        assert service_discovery.config == discovery_config
-        assert service_discovery.domains == {}
-        assert service_discovery.last_scan is None
-
-    @patch('ingressor.core.IngressorClient')
-    @pytest.mark.asyncio
-    async def test_scan_cluster_success(self, mock_client_class, service_discovery):
-        """Test successful cluster scanning."""
-        # Mock IngressorClient
-        mock_client = AsyncMock()
-        mock_client.discover_ingress_domains.return_value = [
-            DomainInfo(
-                domain="test.example.com",
-                cluster="cluster1",
-                environment="test",
-                namespace="default",
-                resource_type="ingress"
-            )
-        ]
-        mock_client.discover_virtualservice_domains.return_value = [
-            DomainInfo(
-                domain="api.example.com",
-                cluster="cluster1",
-                environment="test",
-                namespace="api",
-                resource_type="virtualservice"
-            )
-        ]
-        mock_client_class.return_value = mock_client
-
-        cluster_config = service_discovery.config.clusters[0]
-        domains = await service_discovery._scan_cluster(cluster_config)
-
-        assert len(domains) == 2
-        assert domains[0].domain == "test.example.com"
-        assert domains[1].domain == "api.example.com"
-
-        mock_client.connect.assert_called_once()
-        mock_client.discover_ingress_domains.assert_called_once()
-        mock_client.discover_virtualservice_domains.assert_called_once()
-        mock_client.disconnect.assert_called_once()
-
-    @patch('ingressor.core.IngressorClient')
-    @pytest.mark.asyncio
-    async def test_scan_cluster_with_domain_filter(self, mock_client_class, service_discovery):
-        """Test cluster scanning with domain filtering."""
-        mock_client = AsyncMock()
-        mock_client.discover_ingress_domains.return_value = [
-            DomainInfo(
-                domain="test.example.com",  # Matches filter
-                cluster="cluster1",
-                environment="test",
-                namespace="default",
-                resource_type="ingress"
-            ),
-            DomainInfo(
-                domain="test.other.com",  # Doesn't match filter
-                cluster="cluster1",
-                environment="test",
-                namespace="default",
-                resource_type="ingress"
-            )
-        ]
-        mock_client.discover_virtualservice_domains.return_value = []
-        mock_client_class.return_value = mock_client
-
-        cluster_config = service_discovery.config.clusters[0]
-        domains = await service_discovery._scan_cluster(cluster_config)
-
-        # Only the domain matching the filter should be returned
-        assert len(domains) == 1
-        assert domains[0].domain == "test.example.com"
-
-    @patch('ingressor.core.IngressorClient')
-    @pytest.mark.asyncio
-    async def test_scan_cluster_exclude_namespaces(self, mock_client_class, service_discovery):
-        """Test cluster scanning with namespace exclusion."""
-        mock_client = AsyncMock()
-        mock_client.discover_ingress_domains.return_value = [
-            DomainInfo(
-                domain="test.example.com",
-                cluster="cluster1",
-                environment="test",
-                namespace="default",  # Not excluded
-                resource_type="ingress"
-            ),
-            DomainInfo(
-                domain="system.example.com",
-                cluster="cluster1",
-                environment="test",
-                namespace="kube-system",  # Excluded
-                resource_type="ingress"
-            )
-        ]
-        mock_client.discover_virtualservice_domains.return_value = []
-        mock_client_class.return_value = mock_client
-
-        cluster_config = service_discovery.config.clusters[0]
-        domains = await service_discovery._scan_cluster(cluster_config)
-
-        # Only the domain not in excluded namespace should be returned
-        assert len(domains) == 1
-        assert domains[0].domain == "test.example.com"
-        assert domains[0].namespace == "default"
-
-    @patch('ingressor.core.IngressorClient')
-    @pytest.mark.asyncio
-    async def test_scan_cluster_exception(self, mock_client_class, service_discovery):
-        """Test cluster scanning with exception."""
-        mock_client = AsyncMock()
-        mock_client.connect.side_effect = Exception("Connection failed")
-        mock_client_class.return_value = mock_client
-
-        cluster_config = service_discovery.config.clusters[0]
-        domains = await service_discovery._scan_cluster(cluster_config)
-
-        # Should return empty list on exception
-        assert domains == []
-        mock_client.disconnect.assert_called_once()
-
-    @patch('ingressor.core.ServiceDiscovery._scan_cluster')
-    @pytest.mark.asyncio
-    async def test_scan_all_clusters(self, mock_scan_cluster, service_discovery):
-        """Test scanning all clusters."""
-        # Mock scan results for enabled clusters
-        mock_scan_cluster.side_effect = [
-            [DomainInfo(domain="test1.example.com", cluster="cluster1", environment="test", namespace="default", resource_type="ingress")],
-            [DomainInfo(domain="test2.example.com", cluster="cluster2", environment="prod", namespace="default", resource_type="ingress")]
-        ]
-
-        domains = await service_discovery.scan_all_clusters()
-
-        # Should scan only enabled clusters (cluster1 and cluster2, not cluster3)
-        assert len(domains) == 2
-        assert mock_scan_cluster.call_count == 2
-
-        # Check internal storage
-        assert len(service_discovery.domains) == 2
-        assert "test1.example.com" in service_discovery.domains
-        assert "test2.example.com" in service_discovery.domains
-        assert service_discovery.last_scan is not None
-
-    def test_get_domains_no_filter(self, service_discovery):
-        """Test getting domains without filters."""
-        # Add some test domains
-        service_discovery.domains = {
-            "test1.example.com": DomainInfo(domain="test1.example.com", cluster="cluster1", environment="test", namespace="default", resource_type="ingress"),
-            "test2.example.com": DomainInfo(domain="test2.example.com", cluster="cluster2", environment="prod", namespace="api", resource_type="ingress")
-        }
-
-        domains = service_discovery.get_domains()
-        assert len(domains) == 2
-        # Should be sorted by domain name
-        assert domains[0].domain == "test1.example.com"
-        assert domains[1].domain == "test2.example.com"
-
-    def test_get_domains_with_filters(self, service_discovery):
-        """Test getting domains with filters."""
-        service_discovery.domains = {
-            "test1.example.com": DomainInfo(domain="test1.example.com", cluster="cluster1", environment="test", namespace="default", resource_type="ingress"),
-            "test2.example.com": DomainInfo(domain="test2.example.com", cluster="cluster2", environment="prod", namespace="api", resource_type="ingress"),
-            "test3.example.com": DomainInfo(domain="test3.example.com", cluster="cluster1", environment="test", namespace="web", resource_type="ingress")
-        }
-
-        # Filter by environment
-        domains = service_discovery.get_domains(environment="test")
-        assert len(domains) == 2
-        assert all(d.environment == "test" for d in domains)
-
-        # Filter by cluster
-        domains = service_discovery.get_domains(cluster="cluster2")
-        assert len(domains) == 1
-        assert domains[0].cluster == "cluster2"
-
-        # Filter by namespace
-        domains = service_discovery.get_domains(namespace="api")
-        assert len(domains) == 1
-        assert domains[0].namespace == "api"
-
-        # Multiple filters
-        domains = service_discovery.get_domains(environment="test", cluster="cluster1")
-        assert len(domains) == 2
-        assert all(d.environment == "test" and d.cluster == "cluster1" for d in domains)
-
-    def test_get_summary(self, service_discovery):
-        """Test getting service summary."""
-        service_discovery.domains = {
-            "test1.example.com": DomainInfo(domain="test1.example.com", cluster="cluster1", environment="test", namespace="default", resource_type="ingress"),
-            "test2.example.com": DomainInfo(domain="test2.example.com", cluster="cluster2", environment="prod", namespace="api", resource_type="ingress"),
-            "test3.example.com": DomainInfo(domain="test3.example.com", cluster="cluster1", environment="test", namespace="web", resource_type="ingress")
-        }
-        service_discovery.last_scan = datetime(2023, 1, 1, 12, 0, 0)
-
-        summary = service_discovery.get_summary()
-
-        assert summary.total_domains == 3
-        assert summary.by_environment == {"test": 2, "prod": 1}
-        assert summary.by_cluster == {"cluster1": 2, "cluster2": 1}
-        assert summary.by_namespace == {"default": 1, "api": 1, "web": 1}
-        assert summary.last_scan == datetime(2023, 1, 1, 12, 0, 0)

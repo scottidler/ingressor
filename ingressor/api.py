@@ -6,7 +6,7 @@ from typing import List, Optional
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from .core import ServiceDiscovery
+from .discovery import ServiceDiscovery
 from .logging_config import get_logger, log_api_request, log_api_response, log_function_entry, log_function_exit
 from .models import DomainInfo, DiscoveryConfig, ServiceSummary
 
@@ -53,26 +53,24 @@ async def log_requests(request: Request, call_next):
 
     return response
 
-# Global service discovery instance
-discovery: Optional[ServiceDiscovery] = None
-
-
 async def get_discovery() -> ServiceDiscovery:
-    """Get the global ServiceDiscovery instance."""
-    global discovery
-    if discovery is None:
+    """Get the singleton ServiceDiscovery instance."""
+    try:
+        return ServiceDiscovery.get_instance()
+    except RuntimeError:
         raise HTTPException(status_code=503, detail="Service discovery not initialized")
-    return discovery
 
 
 def initialize_discovery(config: DiscoveryConfig) -> None:
-    """Initialize the global ServiceDiscovery instance."""
+    """Initialize the singleton ServiceDiscovery instance."""
     log_function_entry(logger, "initialize_discovery",
                       clusters_count=len(config.clusters),
                       scan_interval=config.scan_interval)
-    global discovery
-    discovery = ServiceDiscovery(config)
-    logger.info("Service discovery initialized",
+
+    # Create the singleton instance
+    ServiceDiscovery(config)
+
+    logger.info("Service discovery initialized via singleton",
                clusters_count=len(config.clusters),
                scan_interval=config.scan_interval,
                domain_filter=config.domain_filter,

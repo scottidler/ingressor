@@ -9,12 +9,21 @@ from fastapi.testclient import TestClient
 from httpx import AsyncClient
 
 from ingressor.api import app, initialize_discovery, get_discovery
-from ingressor.core import ServiceDiscovery
+from ingressor.discovery import ServiceDiscovery
 from ingressor.models import ClusterConfig, DiscoveryConfig, DomainInfo, ServiceSummary
 
 
 class TestAPI:
     """Tests for FastAPI endpoints."""
+
+    @pytest.fixture(autouse=True)
+    def reset_singleton(self):
+        """Reset singleton before and after each test."""
+        # Reset before test
+        ServiceDiscovery.reset()
+        yield
+        # Reset after test
+        ServiceDiscovery.reset()
 
     @pytest.fixture
     def client(self):

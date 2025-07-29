@@ -7,17 +7,17 @@ __email__ = "scott@idler.me"
 # Lazy imports to avoid loading heavy dependencies for CLI usage
 __all__ = [
     "IngressorClient",
-    "ServiceDiscovery", 
+    "ServiceDiscovery",
     "DomainInfo",
     "ClusterConfig",
 ]
 
 def __getattr__(name):
     if name == "IngressorClient":
-        from .core import IngressorClient
+        from .ingressor import IngressorClient
         return IngressorClient
     elif name == "ServiceDiscovery":
-        from .core import ServiceDiscovery
+        from .discovery import ServiceDiscovery
         return ServiceDiscovery
     elif name == "DomainInfo":
         from .models import DomainInfo
@@ -25,4 +25,4 @@ def __getattr__(name):
     elif name == "ClusterConfig":
         from .models import ClusterConfig
         return ClusterConfig
-    raise AttributeError(f"module '{__name__}' has no attribute '{name}'") 
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
