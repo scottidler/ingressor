@@ -1,0 +1,53 @@
+clusters:
+  # Your EKS test cluster - perfect for testing Ingressor
+  - name: test-cluster
+    kubeconfig_path: ~/.kube/config
+    context: test
+    environment: test
+    region: us-west-2
+    enabled: true
+
+  # Uncomment these when ready to test multiple clusters
+  # - name: prod-cluster
+  #   kubeconfig_path: ~/.kube/config
+  #   context: prod
+  #   environment: prod
+  #   region: us-east-1
+  #   enabled: true
+
+  # - name: dev-cluster
+  #   kubeconfig_path: ~/.kube/config
+  #   context: dev
+  #   environment: dev
+  #   region: us-west-2
+  #   enabled: true
+
+  # - name: staging-cluster
+  #   kubeconfig_path: ~/.kube/config
+  #   context: staging
+  #   environment: staging
+  #   region: us-west-2
+  #   enabled: true
+
+# Scan every 5 minutes
+scan_interval: 300
+
+# Filter domains - adjust this regex for your company domains
+# For now, let's capture all domains to see what's there
+domain_filter: .*
+
+# Namespaces to include (empty = all namespaces)
+include_namespaces: []
+
+# Namespaces to exclude from scanning
+exclude_namespaces:
+  - kube-system
+  - kube-public
+  - istio-system
+  - cert-manager
+  - monitoring
+  - kube-node-lease
+
+# Enable both Istio and Ingress discovery
+enable_istio: true
+enable_ingress: true
